@@ -19,7 +19,15 @@ import InsightsIcon from '@mui/icons-material/InsightsRounded';
 import FactoryIcon from '@mui/icons-material/FactoryRounded';
 import PublicIcon from '@mui/icons-material/PublicRounded';
 import TaskIcon from '@mui/icons-material/TaskAltRounded';
+import HomeIcon from '@mui/icons-material/HomeRounded';
+import ArticleIcon from '@mui/icons-material/ArticleRounded';
+import FactCheckIcon from '@mui/icons-material/FactCheckRounded';
+import HistoryIcon from '@mui/icons-material/HistoryRounded';
+import TimelineIcon from '@mui/icons-material/TimelineRounded';
+import SettingsIcon from '@mui/icons-material/ManageAccountsRounded';
+import AssessmentIcon from '@mui/icons-material/AssessmentRounded';
 import { NavLink, Link } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 
 // Brand icon
 import LAco2Icon from '../icon/LAco2Icon';            // ← keep your path
@@ -83,6 +91,31 @@ function NavItem({ to, icon, label, onClick }) {
 }
 
 export default function Sidebar({ width = 260, mobileOpen, onClose, permanent }) {
+  const { user } = useAuth();
+  const role = user?.role;
+
+  const navItems = [
+    { to: '/', icon: <HomeIcon />, label: 'Home', roles: ['public', 'operator', 'regulator', 'admin'] },
+    { to: '/upload', icon: <UploadIcon />, label: 'Data Upload', roles: ['operator', 'admin'] },
+    { to: '/copilot', icon: <InsightsIcon />, label: 'Compliance Copilot', roles: ['operator', 'admin'] },
+    { to: '/tasks', icon: <TaskIcon />, label: 'Tasks', roles: ['operator', 'admin'] },
+    { to: '/submissions', icon: <ArticleIcon />, label: 'Submissions', roles: ['operator', 'admin'] },
+    { to: '/submissions/review', icon: <FactCheckIcon />, label: 'Filings Review', roles: ['regulator', 'admin'] },
+    { to: '/submissions/history', icon: <HistoryIcon />, label: 'Decision History', roles: ['regulator', 'admin'] },
+    { to: '/metrics/deep-dive', icon: <TimelineIcon />, label: 'Sector Deep Dive', roles: ['regulator', 'admin'] },
+    { to: '/submit', icon: <UploadIcon />, label: 'Guided Submission', roles: ['operator', 'admin'] },
+    { to: '/mrv', icon: <DashboardIcon />, label: 'MRV Analytics', roles: ['admin'] },
+    { to: '/ccus', icon: <FactoryIcon />, label: 'CCUS Projects', roles: ['regulator', 'admin'] },
+    { to: '/ccus/admin', icon: <SettingsIcon />, label: 'CCUS Admin', roles: ['regulator', 'admin'] },
+    { to: '/public', icon: <PublicIcon />, label: 'Public Portal', roles: ['public', 'operator', 'regulator', 'admin'] },
+    { to: '/public/state-emissions/upload', icon: <AssessmentIcon />, label: 'State Emissions Upload', roles: ['admin'] },
+    { to: '/public/sector-deep-dive', icon: <TimelineIcon />, label: 'Public Trends', roles: ['public'] },
+  ];
+
+  const filteredItems = navItems.filter(item => !item.roles || (role && item.roles.includes(role)));
+  const primaryItems = filteredItems.filter(item => item.label !== 'Public Portal');
+  const publicPortalItem = filteredItems.find(item => item.label === 'Public Portal');
+
   const drawerContent = (
     <Box
       sx={(t) => ({
@@ -151,17 +184,28 @@ export default function Sidebar({ width = 260, mobileOpen, onClose, permanent })
       >
         <Stack spacing={1.25}>
           <Typography variant="overline" color="text.secondary" sx={{ px: 1.5 }}>
-            Dashboards
+            Navigation
           </Typography>
           <List disablePadding>
-            <NavItem to="/mrv" icon={<DashboardIcon />} label="MRV Analytics" onClick={onClose} />
-            <NavItem to="/ccus" icon={<FactoryIcon />} label="CCUS Projects" onClick={onClose} />
-            <NavItem to="/" icon={<UploadIcon />} label="Data Upload" onClick={onClose} />
-            <NavItem to="/copilot" icon={<InsightsIcon />} label="Compliance Copilot" onClick={onClose} />
-            <NavItem to="/tasks" icon={<TaskIcon />} label="Tasks" onClick={onClose} />
-            <NavItem to="/submit" icon={<UploadIcon />} label="Guided Submission" onClick={onClose} />
-            <Divider sx={{ my: 1.25 }} />
-            <NavItem to="/public" icon={<PublicIcon />} label="Public Portal" onClick={onClose} />
+            {primaryItems.map(item => (
+              <NavItem
+                key={item.to}
+                to={item.to}
+                icon={item.icon}
+                label={item.label}
+                onClick={onClose}
+              />
+            ))}
+            {publicPortalItem && primaryItems.length > 0 && <Divider sx={{ my: 1.25 }} />}
+            {publicPortalItem && (
+              <NavItem
+                key={publicPortalItem.to}
+                to={publicPortalItem.to}
+                icon={publicPortalItem.icon}
+                label={publicPortalItem.label}
+                onClick={onClose}
+              />
+            )}
           </List>
         </Stack>
       </Box>

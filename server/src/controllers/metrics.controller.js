@@ -9,6 +9,42 @@ import OpenAI from 'openai';
 
 const oid = (s) => new mongoose.Types.ObjectId(s);
 
+const privilegedRoles = new Set(['admin', 'regulator']);
+const canAccessFacility = (user, facility) => {
+  if (!facility) return false;
+  if (privilegedRoles.has(user?.role)) return true;
+  if (!user?.orgId) return false;
+  if (!facility.organizationId) return false;
+  return String(facility.organizationId) === String(user.orgId);
+};
+
+const buildReconciliationPipeline = (match = {}) => ([
+  { $match: match },
+  { $group: {
+      _id: { year: '$year', source: '$source' },
+      co2eTonnes: { $sum: '$co2eTonnes' },
+  }},
+  { $group: {
+      _id: '$_id.year',
+      observed: { $sum: { $cond: [{ $eq: ['$_id.source','observed'] }, '$co2eTonnes', 0] } },
+      reported: { $sum: { $cond: [{ $eq: ['$_id.source','reported'] }, '$co2eTonnes', 0] } }
+  }},
+  { $project: {
+      _id: 0,
+      year: '$_id',
+      observed: 1,
+      reported: 1,
+      delta: { $subtract: ['$reported', '$observed'] },
+      pct: {
+        $cond: [{ $gt: ['$observed', 0] },
+          { $multiply: [{ $divide: [{ $subtract: ['$reported','$observed'] }, '$observed'] }, 100] },
+          null
+        ]
+      }
+  }},
+  { $sort: { year: 1 } }
+]);
+
 export async function overviewBySector(req, res) {
   // optional filters: ?from=2015&to=2025
   const from = Number(req.query.from) || 2015;
@@ -39,6 +75,166 @@ export async function overviewBySector(req, res) {
     series[r.sector].push({ year: r.year, value: r.co2eTonnes });
   }
   res.json({ from, to, series, years: [...yearsSet].sort() });
+}
+
+export async function sectorDeepDive(req, res) {
+  const currentYear = new Date().getUTCFullYear();
+  const from = Number(req.query.from) || currentYear - 5;
+  const to = Number(req.query.to) || currentYear;
+
+  if (from > to) return res.status(400).json({ error: 'Invalid range' });
+
+  const match = {
+    source: 'observed',
+    year: { $gte: from, $lte: to },
+  };
+
+  const lookupStages = [
+    { $lookup: { from: 'facilities', localField: 'facilityId', foreignField: '_id', as: 'facility' } },
+    { $unwind: '$facility' },
+    {
+      $addFields: {
+        sector: {
+          $ifNull: [
+            '$facility.meta.sector',
+            '$facility.sectorCode',
+            '$facility.meta.traceSector',
+            'unknown'
+          ]
+        },
+        subsector: {
+          $ifNull: [
+            '$facility.meta.subsector',
+            '$facility.meta.industry',
+            '$facility.meta.traceSubsector',
+            'Other'
+          ]
+        }
+      }
+    },
+  ];
+
+  const sectorYearRows = await EmissionsObservation.aggregate([
+    { $match: match },
+    ...lookupStages,
+    {
+      $group: {
+        _id: { sector: '$sector', year: '$year' },
+        total: { $sum: '$co2eTonnes' },
+      },
+    },
+    { $project: { _id: 0, sector: '$_id.sector', year: '$_id.year', total: 1 } },
+    { $sort: { sector: 1, year: 1 } },
+  ]);
+
+  const sectorSubRows = await EmissionsObservation.aggregate([
+    { $match: match },
+    ...lookupStages,
+    {
+      $group: {
+        _id: { sector: '$sector', subsector: '$subsector', year: '$year' },
+        total: { $sum: '$co2eTonnes' },
+      },
+    },
+    { $project: { _id: 0, sector: '$_id.sector', subsector: '$_id.subsector', year: '$_id.year', total: 1 } },
+    { $sort: { sector: 1, subsector: 1, year: 1 } },
+  ]);
+
+  const sectorMap = new Map();
+  const yearsSet = new Set();
+
+  for (const row of sectorYearRows) {
+    const sector = row.sector || 'unknown';
+    yearsSet.add(row.year);
+    if (!sectorMap.has(sector)) {
+      sectorMap.set(sector, []);
+    }
+    sectorMap.get(sector).push({ year: row.year, value: row.total });
+  }
+
+  const subsectorMap = new Map();
+  for (const row of sectorSubRows) {
+    const sector = row.sector || 'unknown';
+    if (!subsectorMap.has(sector)) {
+      subsectorMap.set(sector, []);
+    }
+    subsectorMap.get(sector).push({
+      subsector: row.subsector || 'Other',
+      year: row.year,
+      value: row.total,
+    });
+  }
+
+  const sectors = [];
+
+  for (const [sector, totals] of sectorMap.entries()) {
+    const sortedTotals = totals.slice().sort((a, b) => a.year - b.year);
+    if (!sortedTotals.length) continue;
+
+    const yoy = [];
+    for (let i = 1; i < sortedTotals.length; i += 1) {
+      const current = sortedTotals[i];
+      const prev = sortedTotals[i - 1];
+      const delta = current.value - prev.value;
+      const pct = prev.value ? (delta / prev.value) * 100 : null;
+      yoy.push({
+        year: current.year,
+        delta,
+        pct,
+      });
+    }
+
+    const latest = sortedTotals[sortedTotals.length - 1];
+    const prev = sortedTotals.length > 1 ? sortedTotals[sortedTotals.length - 2] : null;
+
+    const breakdownRaw = subsectorMap.get(sector) || [];
+    const latestYear = latest.year;
+    const prevYear = prev?.year ?? null;
+
+    const breakdownMap = new Map();
+    breakdownRaw.forEach((entry) => {
+      const key = entry.subsector || 'Other';
+      if (!breakdownMap.has(key)) {
+        breakdownMap.set(key, { subsector: key, current: 0, previous: 0 });
+      }
+      const bucket = breakdownMap.get(key);
+      if (entry.year === latestYear) bucket.current += entry.value;
+      if (prevYear != null && entry.year === prevYear) bucket.previous += entry.value;
+    });
+
+    const breakdown = [...breakdownMap.values()]
+      .map((entry) => ({
+        subsector: entry.subsector,
+        current: entry.current,
+        previous: entry.previous,
+        delta: entry.current - entry.previous,
+      }))
+      .filter((entry) => entry.current !== 0 || entry.previous !== 0)
+      .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
+      .slice(0, 5);
+
+    sectors.push({
+      sector,
+      totals: sortedTotals,
+      yoy,
+      latest: {
+        year: latest.year,
+        value: latest.value,
+        pctChange: yoy.length ? yoy[yoy.length - 1].pct : null,
+        delta: yoy.length ? yoy[yoy.length - 1].delta : null,
+      },
+      breakdown,
+    });
+  }
+
+  sectors.sort((a, b) => a.sector.localeCompare(b.sector));
+
+  res.json({
+    from,
+    to,
+    years: [...yearsSet].sort((a, b) => a - b),
+    sectors,
+  });
 }
 
 export async function facilityTrend(req, res) {
@@ -73,44 +269,56 @@ export async function methodTimeline(req, res) {
 
 export async function reconciliation(req, res) {
   // Compare reported vs observed per year for a facility
-  const facilityId = oid(req.params.facilityId);
-  const rows = await EmissionsObservation.aggregate([
-    { $match: { facilityId } },
-    { $group: {
-        _id: { year: '$year', source: '$source' },
-        co2eTonnes: { $sum: '$co2eTonnes' },
-        latestVersion: { $max: '$datasetVersion' }
-    }},
-    { $group: {
-        _id: '$_id.year',
-        observed: { $sum: { $cond: [{ $eq: ['$_id.source','observed'] }, '$co2eTonnes', 0] } },
-        reported: { $sum: { $cond: [{ $eq: ['$_id.source','reported'] }, '$co2eTonnes', 0] } }
-    }},
-    { $project: {
-        _id: 0,
-        year: '$_id',
-        observed: 1,
-        reported: 1,
-        delta: { $subtract: ['$reported', '$observed'] },
-        pct: {
-          $cond: [{ $gt: ['$observed', 0] },
-            { $multiply: [{ $divide: [{ $subtract: ['$reported','$observed'] }, '$observed'] }, 100] },
-            null
-          ]
-        }
-    }},
-    { $sort: { year: 1 } }
-  ]);
-  console.log('RECONCILIATION', { facilityId, rows });
+  const { facilityId: facilityIdParam } = req.params;
+  if (facilityIdParam === 'all') {
+    if (!privilegedRoles.has(req.user?.role)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    const rows = await EmissionsObservation.aggregate(buildReconciliationPipeline({}));
+    return res.json({ facilityId: 'all', rows });
+  }
+
+  if (!mongoose.isValidObjectId(facilityIdParam)) {
+    return res.status(400).json({ error: 'Invalid facility id' });
+  }
+  const facility = await Facility.findById(facilityIdParam).select('_id organizationId name');
+  if (!facility) {
+    return res.status(404).json({ error: 'Facility not found' });
+  }
+  if (!canAccessFacility(req.user, facility)) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  const facilityId = facility._id;
+  const rows = await EmissionsObservation.aggregate(buildReconciliationPipeline({ facilityId }));
   res.json({ facilityId, rows });
 }
 
 
 export async function reconciliationExplain(req, res) {
-  const facilityId = new mongoose.Types.ObjectId(req.params.facilityId);
+  const { facilityId: facilityIdParam } = req.params;
+  let facilityId = null;
+  let facility = null;
+  if (facilityIdParam === 'all') {
+    if (!privilegedRoles.has(req.user?.role)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+  } else {
+    if (!mongoose.isValidObjectId(facilityIdParam)) {
+      return res.status(400).json({ error: 'Invalid facility id' });
+    }
+    facility = await Facility.findById(facilityIdParam).select('_id organizationId name');
+    if (!facility) {
+      return res.status(404).json({ error: 'Facility not found' });
+    }
+    if (!canAccessFacility(req.user, facility)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    facilityId = facility._id;
+  }
   const yearQ = req.query.year ? Number(req.query.year) : null;
 
-  const rows = await EmissionsObservation.find({ facilityId }).lean();
+  const match = facilityId ? { facilityId } : {};
+  const rows = await EmissionsObservation.find(match).lean();
   if (!rows.length) return res.json({ ok: true, breakdown: [], meta: { note: 'no data' } });
 
   // pick explicit year or latest with data
@@ -179,9 +387,11 @@ export async function reconciliationExplain(req, res) {
     }
   } catch (e) { explanation = `AI explain unavailable: ${e.message || e}`; }
 
+  const facilityIdentifier = facilityId ? String(facilityId) : 'all';
+
   res.json({
     ok: true,
-    facilityId: String(facilityId),
+    facilityId: facilityIdentifier,
     year,
     breakdown,
     meta: {
@@ -191,7 +401,7 @@ export async function reconciliationExplain(req, res) {
     explanation
   });
 }
-  
+ 
 
 export async function captureVsStorage(req, res) {
   const from = Number(req.query.from) || 2019;
@@ -296,3 +506,27 @@ export async function intensityMetrics(req, res) {
   res.json({ unit, years, p10, p50, p90, facilities, rows });
 }
 
+export async function facilitiesForOrg(req, res) {
+  const user = req.user || {};
+  const role = user.role;
+
+  const query = {};
+  if (role !== 'admin' && role !== 'regulator') {
+    if (!user.orgId) return res.json({ facilities: [] });
+    query.organizationId = user.orgId;
+  }
+
+  const docs = await Facility.find(query)
+    .select('_id name organizationId location')
+    .sort({ name: 1 })
+    .lean();
+
+  const facilities = docs.map((doc) => ({
+    id: String(doc._id),
+    name: doc.name,
+    organizationId: doc.organizationId ? String(doc.organizationId) : null,
+    location: doc.location || null,
+  }));
+
+  res.json({ facilities });
+}

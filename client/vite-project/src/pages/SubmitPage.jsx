@@ -1,7 +1,8 @@
 // src/pages/SubmitPage.jsx
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
+  AlertTitle,
   Avatar,
   Box,
   Button,
@@ -19,6 +20,10 @@ import {
   TextField,
   Tooltip,
   Typography,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
 } from '@mui/material';
 
 import UploadIcon from '@mui/icons-material/CloudUploadRounded';
@@ -30,15 +35,92 @@ import BusinessIcon from '@mui/icons-material/BusinessRounded';
 import RestartAltIcon from '@mui/icons-material/RestartAltRounded';
 import ClearIcon from '@mui/icons-material/ClearRounded';
 import DescriptionIcon from '@mui/icons-material/DescriptionRounded';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import WarningAmberIcon from '@mui/icons-material/WarningAmberRounded';
 
 import { getTemplates, getTemplate, submitFiling } from '../api/copilot';
+import { http } from '../api/http';
+import { useAuth } from '../context/AuthContext';
+import { fmtDateTime } from '../utils/format';
+
+function normalizeIssues(messages = []) {
+  const issues = [];
+  let verdict = null;
+
+  messages.forEach((msgRaw) => {
+    if (!msgRaw) return;
+    const msg = String(msgRaw).trim();
+
+    if (msg.startsWith('Missing:')) {
+      const missingItems = msg.replace('Missing:', '').split(',').map(x => x.trim()).filter(Boolean);
+      issues.push(...missingItems.map(item => `Missing ${item}`));
+      return;
+    }
+
+    const lines = msg.split('\n').map(line => line.trim()).filter(Boolean);
+    lines.forEach((line) => {
+      if (/^verdict[:]/i.test(line)) {
+        verdict = line.split(':')[1]?.trim().toUpperCase() || verdict;
+      } else if (line.startsWith('-')) {
+        issues.push(line.replace(/^-+\s*/, ''));
+      } else {
+        issues.push(line);
+      }
+    });
+  });
+
+  return {
+    issues: issues.filter(Boolean),
+    verdict,
+  };
+}
+
+function IssuesList({ messages }) {
+  const { issues, verdict } = normalizeIssues(messages);
+
+  if (!issues.length && verdict) {
+    return <Typography variant="body2">{verdict}</Typography>;
+  }
+
+  if (!issues.length) {
+    return <Typography variant="body2">No additional guidance returned.</Typography>;
+  }
+
+  return (
+    <List dense sx={{ py: 0 }}>
+      {issues.map((issue, idx) => (
+        <ListItem key={`${issue}-${idx}`} sx={{ py: 0.5, px: 0 }}>
+          <ListItemIcon sx={{ minWidth: 28 }}>
+            <WarningAmberIcon fontSize="small" color="warning" />
+          </ListItemIcon>
+          <ListItemText
+            primary={issue}
+            primaryTypographyProps={{ variant: 'body2' }}
+          />
+        </ListItem>
+      ))}
+      {verdict && (
+        <ListItem sx={{ py: 0.5, px: 0 }}>
+          <ListItemIcon sx={{ minWidth: 28 }}>
+            <CheckCircleOutlineIcon fontSize="small" color={verdict === 'OK' ? 'success' : 'warning'} />
+          </ListItemIcon>
+          <ListItemText
+            primary={`Verdict: ${verdict}`}
+            primaryTypographyProps={{ variant: 'body2', fontWeight: 600 }}
+          />
+        </ListItem>
+      )}
+    </List>
+  );
+}
 
 export default function SubmitPage() {
+  const { user } = useAuth();
   const [templates, setTemplates] = useState([]);
   const [templateId, setTemplateId] = useState('');
   const [template, setTemplate] = useState(null);
 
-  const [orgId, setOrgId] = useState('demo-org');
+  const [orgId, setOrgId] = useState('');
   const [values, setValues] = useState({});
   const [files, setFiles] = useState([]); // [{key, file}]
   const [submitting, setSubmitting] = useState(false);
@@ -46,6 +128,11 @@ export default function SubmitPage() {
 
   const [error, setError] = useState('');
   const [result, setResult] = useState(null);
+  const [tasks, setTasks] = useState([]);
+  const [tasksLoading, setTasksLoading] = useState(false);
+  const [tasksError, setTasksError] = useState('');
+  const [selectedTaskId, setSelectedTaskId] = useState('');
+  const canEditOrg = user?.role === 'admin';
 
   // --- Load template list
   useEffect(() => {
@@ -126,18 +213,70 @@ export default function SubmitPage() {
     setSubmitting(true); setError(''); setResult(null);
     try {
       const res = await submitFiling({
-        orgId,
+        orgId: orgId || user?.orgId || null,
+        taskId: selectedTaskId || null,
         templateId: template._id,
         values,
         files, // API wrapper should send multipart FormData
       });
       setResult(res);
+      if (selectedTaskId) {
+        await loadTasks();
+        setSelectedTaskId('');
+      }
     } catch (e) {
       setError(e.message);
     } finally {
       setSubmitting(false);
     }
   };
+
+  const loadTasks = useCallback(async () => {
+    if (!user) return;
+    setTasksLoading(true);
+    setTasksError('');
+    try {
+      const params = new URLSearchParams();
+      params.set('status', ['open', 'in_progress', 'overdue'].join(','));
+      const { data } = await http.get(`/tasks?${params.toString()}`);
+      setTasks(Array.isArray(data) ? data : []);
+    } catch (e) {
+      setTasks([]);
+      setTasksError(e?.message || 'Failed to load tasks');
+    } finally {
+      setTasksLoading(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    loadTasks();
+  }, [loadTasks]);
+
+  useEffect(() => {
+    if (user?.orgId) {
+      if (!orgId || orgId === 'demo-org') {
+        setOrgId(String(user.orgId));
+      }
+    } else if (!orgId) {
+      setOrgId('demo-org');
+    }
+  }, [user?.orgId, orgId]);
+
+  const availableTasks = useMemo(() => {
+    const excluded = new Set(['submitted', 'accepted', 'closed']);
+    return tasks.filter(t => !excluded.has(t.status));
+  }, [tasks]);
+
+  useEffect(() => {
+    if (!selectedTaskId && availableTasks.length === 1) {
+      setSelectedTaskId(availableTasks[0]._id);
+    }
+  }, [availableTasks, selectedTaskId]);
+
+  const linkedTask = useMemo(() => {
+    if (!result?.taskId) return null;
+    return tasks.find(t => t._id === result.taskId) || null;
+  }, [tasks, result]);
 
   return (
     <Stack spacing={2}>
@@ -183,13 +322,15 @@ export default function SubmitPage() {
           onChange={(e)=>setOrgId(e.target.value)}
           placeholder="e.g. demo-org"
           sx={{ minWidth: 260, maxWidth: 360 }}
+          disabled={!canEditOrg}
+          helperText={canEditOrg ? 'Target organization for this filing' : 'Using your organization'}
           InputProps={{
             startAdornment: (
               <InputAdornment position="start">
                 <BusinessIcon fontSize="small" sx={{ opacity: 0.6 }} />
               </InputAdornment>
             ),
-            endAdornment: (
+            endAdornment: canEditOrg ? (
               <InputAdornment position="end">
                 {orgId && (
                   <IconButton size="small" onClick={()=>setOrgId('')}>
@@ -197,7 +338,7 @@ export default function SubmitPage() {
                   </IconButton>
                 )}
               </InputAdornment>
-            )
+            ) : null,
           }}
         />
 
@@ -210,11 +351,13 @@ export default function SubmitPage() {
           variant="outlined"
           sx={{ mr: 0.5 }}
         />
-        <Tooltip title="Use demo-org">
-          <IconButton size="small" onClick={()=>setOrgId('demo-org')}>
-            <RestartAltIcon />
-          </IconButton>
-        </Tooltip>
+        {canEditOrg && (
+          <Tooltip title="Use demo-org">
+            <IconButton size="small" onClick={()=>setOrgId('demo-org')}>
+              <RestartAltIcon />
+            </IconButton>
+          </Tooltip>
+        )}
       </Paper>
 
       {/* Main Card */}
@@ -252,31 +395,63 @@ export default function SubmitPage() {
                       <Typography variant="body2" color="text.secondary">{template.description}</Typography>
                     )}
 
-                    {(template.fields || []).map((f) => (
-                      <TextField
-                        key={f.key}
-                        fullWidth
-                        size="small"
-                        label={f.label || f.key}
-                        required={!!f.required}
-                        type={
-                          f.type === 'number' ? 'number'
-                            : f.type === 'date' ? 'date'
-                            : 'text'
-                        }
-                        value={values[f.key] ?? ''}
-                        onChange={(e)=>setValue(f.key, e.target.value)}
-                        multiline={f.type === 'textarea'}
-                        minRows={f.type === 'textarea' ? 3 : undefined}
-                        InputLabelProps={f.type === 'date' ? { shrink: true } : undefined}
-                        helperText={f.help || (f.pattern ? `Format: ${f.pattern}` : '')}
-                        inputProps={{
-                          ...(f.pattern ? { pattern: f.pattern } : {}),
-                          ...(f.min != null ? { min: f.min } : {}),
-                          ...(f.max != null ? { max: f.max } : {}),
-                        }}
-                      />
-                    ))}
+                    {(template.fields || []).map((f) => {
+                      const fallbackMethodOptions = ['Measured', 'Calculated', 'Estimated'];
+                      const options = Array.isArray(f.options) && f.options.length > 0
+                        ? f.options
+                        : (f.key === 'method' ? fallbackMethodOptions : []);
+
+                      if (f.type === 'select' || options.length > 0) {
+                        return (
+                          <TextField
+                            key={f.key}
+                            fullWidth
+                            size="small"
+                            select
+                            label={f.label || f.key}
+                            required={!!f.required}
+                            value={values[f.key] ?? ''}
+                            onChange={(e)=>setValue(f.key, e.target.value)}
+                            helperText={f.help || (f.pattern ? `Format: ${f.pattern}` : '')}
+                          >
+                            {options.map(op => (
+                              <MenuItem
+                                key={typeof op === 'string' ? op : op.value}
+                                value={typeof op === 'string' ? op : op.value}
+                              >
+                                {typeof op === 'string' ? op : (op.label ?? op.value)}
+                              </MenuItem>
+                            ))}
+                          </TextField>
+                        );
+                      }
+
+                      return (
+                        <TextField
+                          key={f.key}
+                          fullWidth
+                          size="small"
+                          label={f.label || f.key}
+                          required={!!f.required}
+                          type={
+                            f.type === 'number' ? 'number'
+                              : f.type === 'date' ? 'date'
+                              : 'text'
+                          }
+                          value={values[f.key] ?? ''}
+                          onChange={(e)=>setValue(f.key, e.target.value)}
+                          multiline={f.type === 'textarea'}
+                          minRows={f.type === 'textarea' ? 3 : undefined}
+                          InputLabelProps={f.type === 'date' ? { shrink: true } : undefined}
+                          helperText={f.help || (f.pattern ? `Format: ${f.pattern}` : '')}
+                          inputProps={{
+                            ...(f.pattern ? { pattern: f.pattern } : {}),
+                            ...(f.min != null ? { min: f.min } : {}),
+                            ...(f.max != null ? { max: f.max } : {}),
+                          }}
+                        />
+                      );
+                    })}
 
                     {(template.attachments || []).length > 0 && (
                       <>
@@ -329,6 +504,25 @@ export default function SubmitPage() {
                         </Grid>
                       </>
                     )}
+
+                    <TextField
+                      select
+                      size="small"
+                      label="Link to task"
+                      value={selectedTaskId}
+                      onChange={(e)=>setSelectedTaskId(e.target.value)}
+                      helperText={tasksError ? tasksError : 'Optional: connect this submission to an open compliance task'}
+                      disabled={tasksLoading || (!!tasksError && availableTasks.length === 0)}
+                    >
+                      <MenuItem value="">
+                        <em>None</em>
+                      </MenuItem>
+            {availableTasks.map(task => (
+              <MenuItem key={task._id} value={task._id}>
+                {task.title || 'Untitled task'} — due {task.dueAt ? fmtDateTime(task.dueAt) : 'N/A'}
+              </MenuItem>
+            ))}
+                    </TextField>
 
                     <Stack direction="row" spacing={1}>
                       {!checks.ok && (
@@ -422,10 +616,65 @@ export default function SubmitPage() {
       {result && (
         <Card>
           <CardContent>
-            <Typography variant="h6">Submission Result</Typography>
-            <Box component="pre" sx={{ m: 0, whiteSpace: 'pre-wrap' }}>
-              {JSON.stringify(result, null, 2)}
-            </Box>
+            <Stack spacing={1.5}>
+              <Stack direction="row" spacing={1} alignItems="center">
+                {result.validation?.ok ? (
+                  <CheckCircleOutlineIcon color="success" />
+                ) : (
+                  <WarningAmberIcon color="warning" />
+                )}
+                <Typography variant="h6" fontWeight={600}>
+                  {result.validation?.ok ? 'Submission ready' : 'Submission needs attention'}
+                </Typography>
+                <Chip
+                  label={result.status === 'submitted' ? 'Submitted' : 'Draft'}
+                  color={result.validation?.ok ? 'success' : 'warning'}
+                  size="small"
+                />
+              </Stack>
+
+              <Typography variant="body2" color="text.secondary">
+                Template: {template?.name || 'Template'} • Submitted at {fmtDateTime(result.createdAt)}
+              </Typography>
+
+              {linkedTask && (
+                <Chip
+                  label={`Linked task: ${linkedTask.title || 'Task'}`}
+                  color={result.validation?.ok ? 'success' : 'warning'}
+                  size="small"
+                  sx={{ width: 'fit-content' }}
+                />
+              )}
+
+              {!result.validation?.ok && (
+                <Alert severity="warning" variant="outlined">
+                  <AlertTitle>What to fix</AlertTitle>
+                  <IssuesList messages={result.validation?.messages} />
+                </Alert>
+              )}
+
+              {result.validation?.ok && (
+                <Alert severity="success" variant="outlined">
+                  All checks passed. Regulators can now review this submission.
+                </Alert>
+              )}
+
+              <Divider />
+              <Typography variant="subtitle2">Files uploaded</Typography>
+              <List dense disablePadding>
+                {(result.files || []).map(file => (
+                  <ListItem key={file._id || file.path} disableGutters>
+                    <ListItemIcon sx={{ minWidth: 32 }}>
+                      <DescriptionIcon fontSize="small" color="primary" />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={file.filename}
+                      secondary={`${file.key} • ${(file.size / 1024).toFixed(1)} KB`}
+                    />
+                  </ListItem>
+                ))}
+              </List>
+            </Stack>
           </CardContent>
         </Card>
       )}

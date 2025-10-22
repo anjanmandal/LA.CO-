@@ -8,6 +8,7 @@ const Geo = new mongoose.Schema({
 const ProjectSchema = new mongoose.Schema({
   name: { type: String, required: true, index: true },
   operator: { type: String, required: true },
+  organizationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', index: true },
   classType: { type: String, enum: ['VI','II','Other'], default: 'VI' },
   status: { type: String, enum: ['planning','permitting','construction','operational','suspended','closed'], default: 'permitting' },
   location: { type: Geo, index: '2dsphere' },           // general centroid

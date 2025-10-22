@@ -13,9 +13,9 @@ const ComplianceTaskSchema = new mongoose.Schema({
   title: String,
   owner: String,             // email/user id
   dueAt: Date,
-  status: { type: String, enum: ['open','in_progress','submitted','accepted','overdue','closed'], default: 'open', index: true },
+  status: { type: String, enum: ['open','in_progress','submitted','accepted','overdue','closed','rejected'], default: 'open', index: true },
   priority: { type: String, enum: ['low','med','high'], default: 'med' },
-  generatedBy: { type: String, enum: ['engine','manual'], default: 'engine' },
+  generatedBy: { type: String, enum: ['engine','manual','seed'], default: 'engine' },
   submissionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Submission' },
   audit: [AuditSchema]
 }, { timestamps: true });

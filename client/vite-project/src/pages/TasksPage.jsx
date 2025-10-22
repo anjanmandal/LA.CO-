@@ -1,5 +1,5 @@
 // src/pages/TasksPage.jsx
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Box,
@@ -38,6 +38,9 @@ import FileDownloadIcon from '@mui/icons-material/FileDownloadRounded';
 
 import { http } from '../api/http';
 import { planCompliance } from '../api/copilot';
+import TaskSubmissionDrawer from '../components/tasks/TaskSubmissionDrawer.jsx';
+import { useAuth } from '../context/AuthContext';
+import { fmtDateTime } from '../utils/format';
 
 /* --------------------- Small helpers --------------------- */
 const StatusChip = ({ value }) => {
@@ -46,7 +49,9 @@ const StatusChip = ({ value }) => {
     in_progress: { color: 'info',    label: 'In progress' },
     submitted:   { color: 'primary', label: 'Submitted' },
     completed:   { color: 'success', label: 'Completed' },
+    accepted:    { color: 'success', label: 'Accepted' },
     overdue:     { color: 'error',   label: 'Overdue' },
+    closed:      { color: 'default', label: 'Closed' },
   };
   const cfg = map[value] || { color: 'default', label: value || '—' };
   return <Chip size="small" color={cfg.color} label={cfg.label} variant="outlined" />;
@@ -108,11 +113,13 @@ function Toolbar({ onRefresh, onPlan, onExport, busy, quickFilters, setQuickFilt
 /* ------------------------- Page -------------------------- */
 export default function TasksPage() {
   const theme = useTheme();
+  const { user } = useAuth();
+  const canEditOrg = user?.role === 'admin';
 
   // planner controls
-  const [orgId, setOrgId] = useState('demo-org');
+  const [orgId, setOrgId] = useState('');
   const [sector, setSector] = useState('');
-  const [owner, setOwner] = useState('ops@example.com');
+  const [owner, setOwner] = useState('');
   const [months, setMonths] = useState(12);
 
   // table data
@@ -121,24 +128,36 @@ export default function TasksPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [activeTask, setActiveTask] = useState(null);
 
   // quick filters
   const [quickFilters, setQuickFilters] = useState({ status: '' });
 
-  const fetchTasks = async () => {
+  const fetchTasks = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const { data } = await http.get('/tasks'); // add params if needed
-      setRows(Array.isArray(data) ? data : []);
+      const params = orgId ? { params: { orgId } } : undefined;
+      const { data } = await http.get('/tasks', params);
+      const nextRows = Array.isArray(data) ? data : [];
+      setRows(nextRows);
     } catch (e) {
       setError(e?.message || 'Failed to load tasks');
     } finally {
       setLoading(false);
     }
-  };
+  }, [orgId]);
 
   const plan = async () => {
+    if (!orgId) {
+      setError('Organization ID is required to plan tasks.');
+      return;
+    }
+    if (!owner) {
+      setError('Owner email is required to plan tasks.');
+      return;
+    }
     setBusy(true);
     setError('');
     try {
@@ -157,13 +176,22 @@ export default function TasksPage() {
     }
   };
 
-  useEffect(() => { fetchTasks(); }, []);
+  useEffect(() => { fetchTasks(); }, [fetchTasks]);
+  useEffect(() => {
+    if (user?.orgId && !orgId) setOrgId(String(user.orgId));
+    if (user?.email && !owner) setOwner(user.email);
+  }, [user, orgId, owner]);
+
+  const rowsForOrg = useMemo(() => {
+    if (!user?.orgId) return rows;
+    return rows.filter((r) => String(r?.orgId) === String(user.orgId));
+  }, [rows, user?.orgId]);
 
   // KPIs
   const kpis = useMemo(() => {
     const now = Date.now();
     let open = 0, dueSoon = 0, overdue = 0, completed = 0;
-    rows.forEach(r => {
+    rowsForOrg.forEach(r => {
       const due = r?.dueAt ? new Date(r.dueAt).getTime() : null;
       const st = r?.status || 'open';
       if (st === 'completed' || st === 'submitted') completed += 1;
@@ -175,21 +203,22 @@ export default function TasksPage() {
         }
       }
     });
-    return { open, dueSoon, overdue, completed, total: rows.length };
-  }, [rows]);
+    return { open, dueSoon, overdue, completed, total: rowsForOrg.length };
+  }, [rowsForOrg]);
 
   // quick filter
   const filteredRows = useMemo(() => {
-    if (!quickFilters.status) return rows;
+    const base = rowsForOrg;
+    if (!quickFilters.status) return base;
     if (quickFilters.status === 'overdue') {
       const now = Date.now();
-      return rows.filter(r =>
+      return base.filter(r =>
         !['completed', 'submitted'].includes(r?.status) &&
         r?.dueAt && new Date(r.dueAt).getTime() < now
       );
     }
-    return rows.filter(r => (r?.status || 'open') === quickFilters.status);
-  }, [rows, quickFilters]);
+    return base.filter(r => (r?.status || 'open') === quickFilters.status);
+  }, [rowsForOrg, quickFilters]);
 
   // safer row id
   const getRowId = (r) => r?._id ?? r?.id;
@@ -197,6 +226,33 @@ export default function TasksPage() {
   // Columns — use params.value/params.row and guard nulls
   const columns = [
     { field: 'title', headerName: 'Title', flex: 1.4, minWidth: 240 },
+    {
+      field: 'requirement',
+      headerName: 'Requirement',
+      flex: 1,
+      minWidth: 220,
+      valueGetter: (value) => value?.requirementId || null,
+      renderCell: (value) => {
+        const req = value;
+        if (!req) return '—';
+        const code = req.code || 'Requirement';
+        const badge = req.sector ? req.sector.toUpperCase() : null;
+        return (
+          <Stack spacing={0.5}>
+            <Typography variant="body2" fontWeight={600}>{code}</Typography>
+            {req.title && (
+              <Typography variant="caption" color="text.secondary" noWrap>
+                {req.title}
+              </Typography>
+            )}
+            {badge && (
+              <Chip size="small" label={badge} variant="outlined" sx={{ alignSelf: 'flex-start' }} />
+            )}
+          </Stack>
+        );
+      },
+      sortable: false,
+    },
 
     {
       field: 'status',
@@ -211,15 +267,20 @@ export default function TasksPage() {
       width: 220,
       valueGetter: (value) => {
         const raw = value;
-        return raw ? new Date(raw) : null;
+        if (!raw) return null;
+        const date = new Date(raw);
+        return Number.isNaN(date.getTime()) ? null : date;
       },
       renderCell: (params) => {
         const v = params?.value; // Date or null
         if (!v) return '—';
+        const isPast = v.getTime() < Date.now();
         return (
           <Stack direction="row" spacing={1} alignItems="center">
-            <CalendarIcon fontSize="small" />
-            <Typography variant="body2">{v.toISOString()}</Typography>
+            <CalendarIcon fontSize="small" color={isPast ? 'error' : 'action'} />
+            <Typography variant="body2" color={isPast ? 'error.main' : 'text.primary'}>
+              {fmtDateTime(v)}
+            </Typography>
           </Stack>
         );
       },
@@ -230,8 +291,8 @@ export default function TasksPage() {
       field: 'daysLeft',
       headerName: 'Δ days',
       width: 110,
-      valueGetter: (value,row) => {
-        const raw = row?.dueAt;
+      valueGetter: (value) => {
+        const raw = value?.dueAt;
         if (!raw) return null;
         const dueMs = new Date(raw).getTime();
         if (Number.isNaN(dueMs)) return null;
@@ -273,6 +334,22 @@ export default function TasksPage() {
 
   const headerBg = (t) =>
     `linear-gradient(135deg, ${alpha(t.palette.primary.main, 0.12)}, ${alpha(t.palette.secondary.main, 0.06)})`;
+
+  const handleRowClick = (params) => {
+    setActiveTask(params?.row || null);
+    setDrawerOpen(true);
+  };
+
+  const handleDrawerClose = () => {
+    setDrawerOpen(false);
+    setActiveTask(null);
+  };
+
+  const handleSubmissionCompleted = async () => {
+    setToast('Submission saved');
+    await fetchTasks();
+    handleDrawerClose();
+  };
 
   return (
     <Stack spacing={2}>
@@ -341,13 +418,21 @@ export default function TasksPage() {
       <Card variant="outlined" sx={{ borderRadius: 2 }}>
         <CardContent>
           <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems="center">
-            <TextField label="Org ID" value={orgId} onChange={(e)=>setOrgId(e.target.value)} sx={{ minWidth: 220 }} />
+            <TextField
+              label="Org ID"
+              value={orgId}
+              onChange={(e)=>setOrgId(e.target.value)}
+              sx={{ minWidth: 220 }}
+              disabled={!canEditOrg}
+              helperText={canEditOrg ? 'Target organization for planning' : 'Using your organization'}
+            />
             <TextField label="Sector" value={sector} onChange={(e)=>setSector(e.target.value)} select sx={{ minWidth: 220 }}>
               <MenuItem value="">(All)</MenuItem>
               <MenuItem value="energy">Energy</MenuItem>
               <MenuItem value="power">Power</MenuItem>
               <MenuItem value="agriculture">Agriculture</MenuItem>
               <MenuItem value="buildings">Buildings</MenuItem>
+              <MenuItem value="ccus">CCUS</MenuItem>
               <MenuItem value="transport">Transport</MenuItem>
               <MenuItem value="waste">Waste</MenuItem>
             </TextField>
@@ -404,9 +489,11 @@ export default function TasksPage() {
                   }
                   return '';
                 }}
+                onRowClick={handleRowClick}
                 sx={{
                   border: 'none',
                   '& .MuiDataGrid-columnHeaders': { fontWeight: 700 },
+                  '& .MuiDataGrid-row': { cursor: 'pointer' },
                   '& .task-overdue': {
                     bgcolor: alpha(theme.palette.error.main, theme.palette.mode === 'dark' ? 0.12 : 0.08),
                   },
@@ -419,6 +506,12 @@ export default function TasksPage() {
           </Box>
         </CardContent>
       </Card>
+      <TaskSubmissionDrawer
+        open={drawerOpen}
+        task={activeTask}
+        onClose={handleDrawerClose}
+        onSubmitted={handleSubmissionCompleted}
+      />
     </Stack>
   );
 }

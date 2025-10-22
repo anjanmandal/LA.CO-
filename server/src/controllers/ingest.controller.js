@@ -20,7 +20,6 @@ async function parseCsv(buffer, maxRows = 1000) {
 
 // POST /api/ingest/preview
 export const preview = async (req, res) => {
-    console.log('>>> preview', { body: req.body, file: req.file?.originalname, size: req.file?.size });
   if (!req.file?.buffer?.length) return res.status(400).json({ error: 'CSV file is required' });
 
   const { headers, rows } = await parseCsv(req.file.buffer, 200);

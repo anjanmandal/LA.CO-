@@ -1,0 +1,12 @@
+iso3_country,sector,subsector,start_time,end_time,gas,emissions_quantity,emissions_quantity_units,temporal_granularity,created_date,modified_date
+USA,waste,domestic-wastewater-treatment-and-discharge,2015-01-01 00:00:00,2015-12-31 00:00:00,co2e_100yr,37348394.99272199,,annual,,
+USA,waste,domestic-wastewater-treatment-and-discharge,2016-01-01 00:00:00,2016-12-31 00:00:00,co2e_100yr,37700238.29674851,,annual,,
+USA,waste,domestic-wastewater-treatment-and-discharge,2017-01-01 00:00:00,2017-12-31 00:00:00,co2e_100yr,37840863.52941117,,annual,,
+USA,waste,domestic-wastewater-treatment-and-discharge,2018-01-01 00:00:00,2018-12-31 00:00:00,co2e_100yr,38066324.063791625,,annual,,
+USA,waste,domestic-wastewater-treatment-and-discharge,2019-01-01 00:00:00,2019-12-31 00:00:00,co2e_100yr,38268477.83359054,,annual,,
+USA,waste,domestic-wastewater-treatment-and-discharge,2020-01-01 00:00:00,2020-12-31 00:00:00,co2e_100yr,38458236.73882815,,annual,,
+USA,waste,domestic-wastewater-treatment-and-discharge,2021-01-01 00:00:00,2021-12-31 00:00:00,co2e_100yr,38343985.58388476,,annual,,
+USA,waste,domestic-wastewater-treatment-and-discharge,2022-01-01 00:00:00,2022-12-31 00:00:00,co2e_100yr,38396199.475405976,,annual,,
+USA,waste,domestic-wastewater-treatment-and-discharge,2023-01-01 00:00:00,2023-12-31 00:00:00,co2e_100yr,38612174.07082698,,annual,,
+USA,waste,domestic-wastewater-treatment-and-discharge,2024-01-01 00:00:00,2024-12-31 00:00:00,co2e_100yr,38935234.49200072,,annual,,
+USA,waste,domestic-wastewater-treatment-and-discharge,2025-01-01 00:00:00,2025-12-31 00:00:00,co2e_100yr,22630050.30014264,,annual,,

@@ -1,0 +1,12 @@
+iso3_country,sector,subsector,start_time,end_time,gas,emissions_quantity,emissions_quantity_units,temporal_granularity,created_date,modified_date
+USA,waste,biological-treatment-of-solid-waste-and-biogenic,2015-01-01 00:00:00,2015-12-31 00:00:00,co2e_100yr,4032402.584009998,,annual,,
+USA,waste,biological-treatment-of-solid-waste-and-biogenic,2016-01-01 00:00:00,2016-12-31 00:00:00,co2e_100yr,4328719.505609998,,annual,,
+USA,waste,biological-treatment-of-solid-waste-and-biogenic,2017-01-01 00:00:00,2017-12-31 00:00:00,co2e_100yr,4652827.566248998,,annual,,
+USA,waste,biological-treatment-of-solid-waste-and-biogenic,2018-01-01 00:00:00,2018-12-31 00:00:00,co2e_100yr,4290555.494138998,,annual,,
+USA,waste,biological-treatment-of-solid-waste-and-biogenic,2019-01-01 00:00:00,2019-12-31 00:00:00,co2e_100yr,4312412.968130998,,annual,,
+USA,waste,biological-treatment-of-solid-waste-and-biogenic,2020-01-01 00:00:00,2020-12-31 00:00:00,co2e_100yr,4324688.944031999,,annual,,
+USA,waste,biological-treatment-of-solid-waste-and-biogenic,2021-01-01 00:00:00,2021-12-31 00:00:00,co2e_100yr,4383146.215874999,,annual,,
+USA,waste,biological-treatment-of-solid-waste-and-biogenic,2022-01-01 00:00:00,2022-12-31 00:00:00,co2e_100yr,4442393.660801998,,annual,,
+USA,waste,biological-treatment-of-solid-waste-and-biogenic,2023-01-01 00:00:00,2023-12-31 00:00:00,co2e_100yr,4502441.959877998,,annual,,
+USA,waste,biological-treatment-of-solid-waste-and-biogenic,2024-01-01 00:00:00,2024-12-31 00:00:00,co2e_100yr,4502441.959877998,,annual,,
+USA,waste,biological-treatment-of-solid-waste-and-biogenic,2025-01-01 00:00:00,2025-12-31 00:00:00,co2e_100yr,2626424.4765954986,,annual,,

@@ -30,9 +30,11 @@ export async function generateTasks({ orgId: orgRef, sector, windowStart, window
   // convert "demo-org" (or name/_id) → ObjectId
   const orgId = await resolveOrgId(orgRef);
 
-  const reqs = await RegRequirement.find({
-    $or: [{ sector }, { sector: null }, { sector: undefined }]
-  }).lean();
+  const sectorFilter = sector
+    ? { $or: [{ sector }, { sector: null }, { sector: { $exists: false } }] }
+    : {};
+
+  const reqs = await RegRequirement.find(sectorFilter).lean();
 
   let created = 0, skipped = 0;
   for (const r of reqs) {

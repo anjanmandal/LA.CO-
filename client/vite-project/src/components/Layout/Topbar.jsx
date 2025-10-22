@@ -8,6 +8,7 @@ import {
   IconButton,
   InputBase,
   Stack,
+  Button,
   alpha,
   useTheme,
   useMediaQuery,
@@ -19,10 +20,20 @@ import NotificationsNoneRounded from '@mui/icons-material/NotificationsNoneRound
 
 import ThemeToggle from './ThemeToggle';
 import LAco2Icon from '../icon/LAco2Icon';
+import { useAuth } from '../../context/AuthContext';
 
 export default function Topbar({ mode, onToggle, onOpenSidebar, drawerWidth = 260 }) {
   const theme = useTheme();
   const mdUp = useMediaQuery(theme.breakpoints.up('md'));
+  const { user, logout, isLoggingOut } = useAuth();
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (err) {
+      console.error('Logout failed', err);
+    }
+  };
 
   // Subtle glass backdrop with hairline bottom border & faint gradient accent
   const barSx = useMemo(
@@ -59,7 +70,9 @@ export default function Topbar({ mode, onToggle, onOpenSidebar, drawerWidth = 26
           spacing={1}
           sx={{ minWidth: 0, mr: 1 }}
         >
-         
+          <Box sx={{ display: { xs: 'none', md: 'grid' }, placeItems: 'center' }}>
+            <LAco2Icon sx={{ fontSize: 28, color: 'primary.main' }} />
+          </Box>
           {mdUp && (
             <Typography
               variant="subtitle1"
@@ -111,6 +124,26 @@ export default function Topbar({ mode, onToggle, onOpenSidebar, drawerWidth = 26
             <NotificationsNoneRounded />
           </IconButton>
           <ThemeToggle mode={mode} onToggle={onToggle} />
+          {user && (
+            <Stack direction="row" spacing={1} alignItems="center" sx={{ pl: 1 }}>
+              <Stack spacing={0} sx={{ minWidth: 0 }}>
+                <Typography variant="body2" fontWeight={600} noWrap>
+                  {user.name || user.email}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" noWrap>
+                  {user.role}
+                </Typography>
+              </Stack>
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={handleLogout}
+                disabled={isLoggingOut}
+              >
+                {isLoggingOut ? 'Signing out…' : 'Sign out'}
+              </Button>
+            </Stack>
+          )}
         </Stack>
       </Toolbar>
     </AppBar>

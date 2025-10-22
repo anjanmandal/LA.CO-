@@ -8,15 +8,22 @@ import copilot from './copilot.routes.js';
 import tasks from './tasks.routes.js'; // optional task queue endpoint placeholder
 import ccus from './ccus.routes.js';
 import publicRoutes from './public.routes.js';
+import authRoutes from './auth.routes.js';
+import submissions from './submissions.routes.js';
+import { ensureRole } from '../middleware/auth.js';
 
 const r = Router();
-r.use('/ingest', ingest);
-r.use('/ai', ai);
-r.use('/emissions', emissions);
-r.use('/metrics', metrics);      
-r.use('/analytics', analytics);  
-r.use('/copilot', copilot);  
-r.use('/tasks',tasks); // optional task queue endpoint placeholder
-r.use('/ccus', ccus);
-r.use('/public', publicRoutes);     
+r.use('/auth', authRoutes);
+r.use('/public', publicRoutes);
+
+r.use('/ingest', ensureRole('operator', 'admin'), ingest);
+r.use('/ai', ensureRole('operator', 'admin'), ai);
+r.use('/emissions', ensureRole('operator', 'admin'), emissions);
+r.use('/metrics', ensureRole('public', 'operator', 'regulator', 'admin'), metrics);      
+r.use('/analytics', ensureRole('operator', 'regulator', 'admin'), analytics);  
+r.use('/copilot', ensureRole('operator', 'admin'), copilot);  
+r.use('/tasks', ensureRole('operator', 'admin'), tasks); // optional task queue endpoint placeholder
+r.use('/submissions', submissions);
+r.use('/ccus', ensureRole('regulator', 'admin'), ccus);
+
 export default r;

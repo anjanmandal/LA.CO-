@@ -6,18 +6,29 @@ import { DataGrid, GridToolbar } from '@mui/x-data-grid';
 import { getAnomalies } from '../../api/metrics';
 import { fmtInt } from '../../utils/format';
 
-export default function AnomalyPanel({ facilityId, sectorCode }) {
+export default function AnomalyPanel({ facilityId, sectorCode, hasFacilities=false }) {
   const [z, setZ] = useState(3.5);
   const [source, setSource] = useState('reported');
   const [data, setData] = useState(null);
   const [err, setErr] = useState('');
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!facilityId && !sectorCode) return;
+    if (!facilityId && !sectorCode) {
+      setData(null);
+      setErr('');
+      return;
+    }
+    setErr('');
+    setData(null);
+    setLoading(true);
     getAnomalies({ facilityId, sector: sectorCode, z, source })
-      .then(setData).catch(e=>setErr(e.message));
+      .then((payload) => { if (alive) setData(payload); })
+      .catch((e) => { if (alive) setErr(e.message); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
   }, [facilityId, sectorCode, z, source]);
-console.log('ANOMALY DATA', {data});
+
   const rows = data?.points ?? [];
   const anomalies = data?.anomalies ?? [];
 
@@ -44,42 +55,54 @@ console.log('ANOMALY DATA', {data});
             </TextField>
           </Stack>
 
-          {err && <Typography color="error">{err}</Typography>}
+          {!facilityId && !sectorCode ? (
+            <Typography variant="body2" color="text.secondary">
+              {hasFacilities ? 'Select a facility to evaluate anomaly patterns.' : 'Facilities not found.'}
+            </Typography>
+          ) : (
+            <>
+              {err && <Typography color="error">{err}</Typography>}
 
-          {/* Chart of full series with anomaly highlights */}
-          {rows.length > 0 && (
-            <BarChart
-              height={390}
-              xAxis={[{ data: rows.map(r=>r.year), scaleType: 'band', label: 'Year' }]}
-              series={[{ data: rows.map(r=>r.value), label: 'tCO₂e' }]}
-            />
-          )}
-
-          {/* Grid of anomalies */}
-          {!data ? null :
-            anomalies.length === 0 ? (
-              <Alert severity="success">No anomalies (z ≥ {z}).</Alert>
-            ) : (
-              <div style={{ height: 360, width: '100%' }}>
-                <DataGrid
-                  rows={gridRows}
-                  columns={columns}
-                  density="compact"
-                  disableRowSelectionOnClick
-                  slots={{ toolbar: GridToolbar }}
-                  slotProps={{ toolbar: { showQuickFilter: true, csvOptions: { fileName: 'anomalies' } } }}
-                  initialState={{
-                    sorting: { sortModel: [{ field: 'z', sort: 'desc' }] },
-                    pagination: { paginationModel: { pageSize: 10 } }
-                  }}
-                  pageSizeOptions={[10, 25, 50]}
+              {/* Chart of full series with anomaly highlights */}
+              {loading ? (
+                <Stack>
+                  <Typography variant="body2" color="text.secondary">Loading anomalies…</Typography>
+                </Stack>
+              ) : rows.length > 0 && (
+                <BarChart
+                  height={390}
+                  xAxis={[{ data: rows.map(r=>r.year), scaleType: 'band', label: 'Year' }]}
+                  series={[{ data: rows.map(r=>r.value), label: 'tCO₂e' }]}
                 />
-              </div>
-            )
-          }
+              )}
 
-          {data?.explanations && typeof data.explanations === 'string' && (
-            <Typography variant="body2" sx={{ whiteSpace:'pre-wrap' }}>{data.explanations}</Typography>
+              {/* Grid of anomalies */}
+              {!data ? null :
+                anomalies.length === 0 ? (
+                  <Alert severity="success">No anomalies (z ≥ {z}).</Alert>
+                ) : (
+                  <div style={{ height: 360, width: '100%' }}>
+                    <DataGrid
+                      rows={gridRows}
+                      columns={columns}
+                      density="compact"
+                      disableRowSelectionOnClick
+                      slots={{ toolbar: GridToolbar }}
+                      slotProps={{ toolbar: { showQuickFilter: true, csvOptions: { fileName: 'anomalies' } } }}
+                      initialState={{
+                        sorting: { sortModel: [{ field: 'z', sort: 'desc' }] },
+                        pagination: { paginationModel: { pageSize: 10 } }
+                      }}
+                      pageSizeOptions={[10, 25, 50]}
+                    />
+                  </div>
+                )
+              }
+
+              {data?.explanations && typeof data.explanations === 'string' && (
+                <Typography variant="body2" sx={{ whiteSpace:'pre-wrap' }}>{data.explanations}</Typography>
+              )}
+            </>
           )}
         </Stack>
       </CardContent>

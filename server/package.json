@@ -9,15 +9,21 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "nodemon src/index.js",
-    "start": "node src/index.js"
+    "start": "node src/index.js",
+    "migrate": "migrate-mongo up -f migrate-mongo-config.cjs",
+    "migrate:down": "migrate-mongo down -f migrate-mongo-config.cjs",
+    "seed:users": "node scripts/seedUsers.js"
   },
   "dependencies": {
+    "bcrypt": "^6.0.0",
+    "connect-mongo": "^5.1.0",
     "cors": "^2.8.5",
     "csv-parse": "^6.1.0",
     "date-fns": "^4.1.0",
     "date-fns-tz": "^3.2.0",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
+    "express-session": "^1.18.2",
     "mongoose": "^8.19.0",
     "morgan": "^1.10.1",
     "multer": "^2.0.2",
@@ -25,7 +31,13 @@
     "node-fetch": "^3.3.2",
     "nodemon": "^3.1.10",
     "openai": "^6.2.0",
+    "passport": "^0.7.0",
+    "passport-local": "^1.0.0",
     "rrule": "^2.8.1",
+    "xlsx": "^0.18.5",
     "zod": "^4.1.11"
+  },
+  "devDependencies": {
+    "migrate-mongo": "^10.0.0"
   }
 }

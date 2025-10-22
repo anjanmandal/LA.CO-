@@ -6,9 +6,11 @@ const r = Router();
 
 // Existing
 r.get('/overview', m.overviewBySector);
+r.get('/sector-deep-dive', m.sectorDeepDive);
 r.get('/facility/:id/trend', m.facilityTrend);
 r.get('/methods', m.methodTimeline);
 r.get('/reconciliation/:facilityId', m.reconciliation);
+r.get('/facilities', m.facilitiesForOrg);
 
 r.get('/capture-storage', m.captureVsStorage);
 r.get('/intensity', m.intensityMetrics);

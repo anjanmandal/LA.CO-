@@ -144,8 +144,8 @@ export default function CaptureStoragePanel({ sectorCode = '' }) {
             data: years,
             label: 'Year',
             scaleType: 'point',
-            tickInterval: (v, i) => (i % 2 === 0),
-            height: 28,
+            tickLabelStyle: { fontSize: 12 },
+            height: 45,
           }]}
           yAxis={[{ width: 60 }]}
           series={[
@@ -182,7 +182,7 @@ export default function CaptureStoragePanel({ sectorCode = '' }) {
           ]}
           grid={{ horizontal: true }}
           hideLegend
-          margin={{ left: 6, right: 18, top: 16, bottom: 4 }}
+          margin={{ left: 6, right: 18, top: 16, bottom: 36 }}
           sx={{ ...gradientRules }}
         >
           <AreaGradient id="grad-captured" color={colors.captured} />

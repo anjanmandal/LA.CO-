@@ -1,0 +1,12 @@
+iso3_country,sector,subsector,start_time,end_time,gas,emissions_quantity,emissions_quantity_units,temporal_granularity,created_date,modified_date
+USA,power,electricity-generation,2015-01-01 00:00:00,2015-12-31 00:00:00,co2e_100yr,1822423600,,annual,,
+USA,power,electricity-generation,2016-01-01 00:00:00,2016-12-31 00:00:00,co2e_100yr,1828890100,,annual,,
+USA,power,electricity-generation,2017-01-01 00:00:00,2017-12-31 00:00:00,co2e_100yr,1777151700,,annual,,
+USA,power,electricity-generation,2018-01-01 00:00:00,2018-12-31 00:00:00,co2e_100yr,1801298000,,annual,,
+USA,power,electricity-generation,2019-01-01 00:00:00,2019-12-31 00:00:00,co2e_100yr,1667462800,,annual,,
+USA,power,electricity-generation,2020-01-01 00:00:00,2020-12-31 00:00:00,co2e_100yr,1496915400,,annual,,
+USA,power,electricity-generation,2021-01-01 00:00:00,2021-12-31 00:00:00,co2e_100yr,1561344020,,annual,,
+USA,power,electricity-generation,2022-01-01 00:00:00,2022-12-31 00:00:00,co2e_100yr,1545960450,,annual,,
+USA,power,electricity-generation,2023-01-01 00:00:00,2023-12-31 00:00:00,co2e_100yr,1420533370,,annual,,
+USA,power,electricity-generation,2024-01-01 00:00:00,2024-12-31 00:00:00,co2e_100yr,1412590600,,annual,,
+USA,power,electricity-generation,2025-01-01 00:00:00,2025-12-31 00:00:00,co2e_100yr,827018270,,annual,,
