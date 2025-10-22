@@ -17,6 +17,8 @@ import {
   explainChart
 } from '../api/public';
 import CivicBriefCard from '../components/public/CivicBriefCard';
+import StateTotalsLine from '../components/public/StateTotalsLine';
+import { Link as RouterLink } from 'react-router-dom';
 
 // --- Leaflet marker icons (Vite fix)
 delete L.Icon.Default.prototype._getIconUrl;
@@ -204,6 +206,9 @@ export default function PublicPortalPage() {
                 <MenuItem key={y} value={y}>{y}</MenuItem>
               ))}
             </TextField>
+            <Button component={RouterLink} to="/public/state-emissions" variant="outlined">
+              State emissions view
+            </Button>
             <Button variant="outlined" onClick={refresh}>Refresh</Button>
           </Stack>
         </Stack>
@@ -234,6 +239,7 @@ export default function PublicPortalPage() {
                 overflow: 'hidden',
                 border: '1px solid',
                 borderColor: 'divider',
+                height: '100%',
               }}
             >
               <MapContainer center={[30.5, -91.2]} zoom={9} style={{ height: '100%', width: '100%' }}>
@@ -290,10 +296,12 @@ export default function PublicPortalPage() {
               </Card>
             </Stack>
           </Box>
-        </CardContent>
-      </Card>
+      </CardContent>
+    </Card>
 
-      {/* Emissions stacked chart + explain + CSV */}
+    <StateTotalsLine from={from} to={to} />
+
+    {/* Emissions stacked chart + explain + CSV */}
       <Card variant="outlined" sx={{ borderRadius: 2 }}>
         <CardContent>
           <Stack direction={{ xs:'column', md:'row' }} alignItems={{ xs:'flex-start', md:'center' }} justifyContent="space-between" gap={1}>

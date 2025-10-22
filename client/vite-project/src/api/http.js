@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { dispatchError } from '../utils/errorBus'
 
 /**
  * Axios singleton with base URL:
@@ -7,13 +8,17 @@ import axios from 'axios'
  */
 export const http = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
-  timeout: 90_000
+  timeout: 90_000,
+  withCredentials: true
 })
-console.log('API base URL:', http.defaults.baseURL)
 http.interceptors.response.use(
   (res) => res,
   (err) => {
-    const msg = err?.response?.data?.error || err.message || 'Network error'
-    return Promise.reject(new Error(msg))
+    const status = err?.response?.status
+    const message = 'Server error (400)'
+    const error = new Error(message)
+    error.status = status
+    dispatchError(message)
+    return Promise.reject(error)
   }
 )

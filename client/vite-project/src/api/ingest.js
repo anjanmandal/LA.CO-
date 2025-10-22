@@ -4,10 +4,7 @@ import { http } from './http';
 export async function previewFile(file) {
   const fd = new FormData();
   fd.append('file', file);
-  console.log('>>> previewFile', { fileName: file.name, fileSize: file.size });
-
   const { data } = await http.post('/ingest/preview', fd); // axios sets headers for FormData automatically
-  console.log('<<< previewFile', data);
   
   return data;
 }

@@ -1,0 +1,12 @@
+iso3_country,sector,subsector,start_time,end_time,gas,emissions_quantity,emissions_quantity_units,temporal_granularity,created_date,modified_date
+USA,agriculture,crop-residues,2015-01-01 00:00:00,2015-12-31 00:00:00,co2e_100yr,15460786.988924658,,annual,,
+USA,agriculture,crop-residues,2016-01-01 00:00:00,2016-12-31 00:00:00,co2e_100yr,16371538.949961184,,annual,,
+USA,agriculture,crop-residues,2017-01-01 00:00:00,2017-12-31 00:00:00,co2e_100yr,15658076.918939885,,annual,,
+USA,agriculture,crop-residues,2018-01-01 00:00:00,2018-12-31 00:00:00,co2e_100yr,15578525.471703067,,annual,,
+USA,agriculture,crop-residues,2019-01-01 00:00:00,2019-12-31 00:00:00,co2e_100yr,14418862.995886574,,annual,,
+USA,agriculture,crop-residues,2020-01-01 00:00:00,2020-12-31 00:00:00,co2e_100yr,15338268.26496487,,annual,,
+USA,agriculture,crop-residues,2021-01-01 00:00:00,2021-12-31 00:00:00,co2e_100yr,15741011.832000006,,annual,,
+USA,agriculture,crop-residues,2022-01-01 00:00:00,2022-12-31 00:00:00,co2e_100yr,14727057.072000004,,annual,,
+USA,agriculture,crop-residues,2023-01-01 00:00:00,2023-12-31 00:00:00,co2e_100yr,15611566.152000004,,annual,,
+USA,agriculture,crop-residues,2024-01-01 00:00:00,2024-12-31 00:00:00,co2e_100yr,15324569.715000004,,annual,,
+USA,agriculture,crop-residues,2025-01-01 00:00:00,2025-12-31 00:00:00,co2e_100yr,8938334.223000009,,annual,,

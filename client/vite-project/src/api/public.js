@@ -28,3 +28,27 @@ export async function explainChart(payload) {
   const { data } = await http.post('/public/explain', payload);
   return data; // { caption }
 }
+
+export async function getStateEmissionMeta() {
+  const { data } = await http.get('/public/state-emissions/meta');
+  return data; // { states:[{state, years:[]}] }
+}
+
+export async function getStateEmissionSummary(params) {
+  const { data } = await http.get('/public/state-emissions', { params });
+  return data; // { state, year, total, sectors:[], facilities:[] }
+}
+
+export async function getStateEmissionTotals(params) {
+  const { data } = await http.get('/public/state-emissions/totals', { params });
+  return data; // { states:[{state,total,topSector,year}] }
+}
+
+export async function uploadStateEmissions(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+  const { data } = await http.post('/public/state-emissions/import', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return data;
+}

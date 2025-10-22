@@ -7,14 +7,19 @@ import { getReconciliationExplain } from '../../api/metrics';
 export default function ReconciliationExplain({ facilityId, year }) {
   const [data, setData] = useState(null);
   const [err, setErr] = useState('');
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!facilityId) return;
+    let alive = true;
     setErr('');
-    getReconciliationExplain(facilityId, year).then(setData).catch(e=>setErr(e.message));
+    setLoading(true);
+    getReconciliationExplain(facilityId, year)
+      .then((payload) => { if (alive) setData(payload); })
+      .catch((e) => { if (alive) setErr(e.message); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
   }, [facilityId, year]);
-
-  console.log('RECON EXPLAIN', {data});
   const wf = useMemo(() => {
     if (!data?.breakdown) return null;
     let run = 0;
@@ -36,7 +41,7 @@ export default function ReconciliationExplain({ facilityId, year }) {
   }, [data]);
 
   if (err) return <Typography color="error">{err}</Typography>;
-  if (!data) return <Typography variant="body2">Loading…</Typography>;
+  if (loading || !data) return <Typography variant="body2">Loading…</Typography>;
 
   return (
     <Stack spacing={1.25}>

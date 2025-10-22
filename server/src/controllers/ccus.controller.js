@@ -4,13 +4,51 @@ import CcusPermit from '../models/CcusPermit.js';
 import CcusInjection from '../models/CcusInjection.js';
 import CcusPipe from '../models/CcusPipe.js';
 import CcusAlert from '../models/CcusAlert.js';
+import Organization from '../models/Organization.js';
 import { computeRiskScore } from '../services/ccus/riskScore.js';
 import { checkGeofences } from '../services/ccus/geoAlerts.js';
 import mongoose from 'mongoose';
 
 export const listProjects = async (_req, res) => {
-  const items = await CcusProject.find().lean();
-  res.json(items);
+  const projects = await CcusProject.find().lean();
+  if (!projects.length) return res.json([]);
+
+  const ids = projects.map((p) => p._id);
+
+  const [wellCounts, permitCounts, alertCounts, orgDocs] = await Promise.all([
+    CcusWell.aggregate([
+      { $match: { projectId: { $in: ids } } },
+      { $group: { _id: '$projectId', count: { $sum: 1 } } },
+    ]),
+    CcusPermit.aggregate([
+      { $match: { projectId: { $in: ids } } },
+      { $group: { _id: '$projectId', count: { $sum: 1 } } },
+    ]),
+    CcusAlert.aggregate([
+      { $match: { projectId: { $in: ids } } },
+      { $group: { _id: '$projectId', count: { $sum: 1 } } },
+    ]),
+    Organization.find({ _id: { $in: projects.filter((p) => p.organizationId).map((p) => p.organizationId) } })
+      .select('name')
+      .lean(),
+  ]);
+
+  const wellMap = Object.fromEntries(wellCounts.map((w) => [String(w._id), w.count]));
+  const permitMap = Object.fromEntries(permitCounts.map((w) => [String(w._id), w.count]));
+  const alertMap = Object.fromEntries(alertCounts.map((w) => [String(w._id), w.count]));
+  const orgMap = Object.fromEntries(orgDocs.map((o) => [String(o._id), o.name]));
+
+  const decorated = projects.map((p) => ({
+    ...p,
+    counts: {
+      wells: wellMap[String(p._id)] || 0,
+      permits: permitMap[String(p._id)] || 0,
+      alerts: alertMap[String(p._id)] || 0,
+    },
+    organizationName: p.organizationId ? orgMap[String(p.organizationId)] || null : null,
+  }));
+
+  res.json(decorated);
 };
 
 export const getProject = async (req, res) => {
@@ -20,21 +58,42 @@ export const getProject = async (req, res) => {
   const permits = await CcusPermit.find({ projectId: p._id }).lean();
   const pipes = await CcusPipe.find({ projectId: p._id }).lean();
 
-  // KPI: last 30 days total volume and max pressure
-  const since = new Date(); since.setDate(since.getDate() - 30);
-  const injAgg = await CcusInjection.aggregate([
-    { $match: { projectId: new mongoose.Types.ObjectId(p._id), date: { $gte: since } } },
-    { $group: {
-        _id: null,
-        volume: { $sum: '$volume_tCO2' },
-        maxP: { $max: '$maxSurfacePressure_psi' }
-    }}
-  ]);
-  const vol30 = injAgg[0]?.volume || 0;
-  const maxP30 = injAgg[0]?.maxP || 0;
+  // KPI: last 30 days relative to latest available injection record
+  let vol30 = 0;
+  let maxP30 = 0;
+  const latestInjection = await CcusInjection.findOne({ projectId: p._id }).sort({ date: -1 }).lean();
+  if (latestInjection) {
+    const windowStart = new Date(latestInjection.date);
+    windowStart.setDate(windowStart.getDate() - 30);
+    const injAgg = await CcusInjection.aggregate([
+      {
+        $match: {
+          projectId: new mongoose.Types.ObjectId(p._id),
+          date: { $gte: windowStart, $lte: latestInjection.date }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          volume: { $sum: '$volume_tCO2' },
+          maxP: { $max: '$maxSurfacePressure_psi' }
+        }
+      }
+    ]);
+    vol30 = injAgg[0]?.volume || 0;
+    maxP30 = injAgg[0]?.maxP || 0;
+  }
+  if (!maxP30) {
+    maxP30 = Math.max(0, ...wells.map((w) => w.maxAllowablePressure_psi || 0));
+  }
   const risk = computeRiskScore({ monthVolume_tCO2: vol30, maxSurfacePressure_psi: maxP30, geologyTags: p.geologyTags });
 
-  res.json({ project: p, wells, permits, pipes, kpi: { vol30_tCO2: vol30, maxP30_psi: maxP30, risk } });
+  let organization = null;
+  if (p.organizationId) {
+    organization = await Organization.findById(p.organizationId).select('name').lean();
+  }
+
+  res.json({ project: p, organization, wells, permits, pipes, kpi: { vol30_tCO2: vol30, maxP30_psi: maxP30, risk } });
 };
 
 export const upsertInjection = async (req, res) => {

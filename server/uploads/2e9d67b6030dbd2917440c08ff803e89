@@ -1,0 +1,12 @@
+iso3_country,sector,subsector,start_time,end_time,gas,emissions_quantity,emissions_quantity_units,temporal_granularity,created_date,modified_date
+USA,buildings,non-residential-onsite-fuel-usage,2015-01-01 00:00:00,2015-12-31 00:00:00,co2e_100yr,115255324.86899967,,annual,,
+USA,buildings,non-residential-onsite-fuel-usage,2016-01-01 00:00:00,2016-12-31 00:00:00,co2e_100yr,111390446.07455766,,annual,,
+USA,buildings,non-residential-onsite-fuel-usage,2017-01-01 00:00:00,2017-12-31 00:00:00,co2e_100yr,111478029.24756356,,annual,,
+USA,buildings,non-residential-onsite-fuel-usage,2018-01-01 00:00:00,2018-12-31 00:00:00,co2e_100yr,123356356.2551286,,annual,,
+USA,buildings,non-residential-onsite-fuel-usage,2019-01-01 00:00:00,2019-12-31 00:00:00,co2e_100yr,122635507.13708448,,annual,,
+USA,buildings,non-residential-onsite-fuel-usage,2020-01-01 00:00:00,2020-12-31 00:00:00,co2e_100yr,113826007.5670718,,annual,,
+USA,buildings,non-residential-onsite-fuel-usage,2021-01-01 00:00:00,2021-12-31 00:00:00,co2e_100yr,116805892.97020002,,annual,,
+USA,buildings,non-residential-onsite-fuel-usage,2022-01-01 00:00:00,2022-12-31 00:00:00,co2e_100yr,122777922.3398,,annual,,
+USA,buildings,non-residential-onsite-fuel-usage,2023-01-01 00:00:00,2023-12-31 00:00:00,co2e_100yr,123502535.9982,,annual,,
+USA,buildings,non-residential-onsite-fuel-usage,2024-01-01 00:00:00,2024-12-31 00:00:00,co2e_100yr,124152646.86179996,,annual,,
+USA,buildings,non-residential-onsite-fuel-usage,2025-01-01 00:00:00,2025-12-31 00:00:00,co2e_100yr,75673582.81719999,,annual,,
