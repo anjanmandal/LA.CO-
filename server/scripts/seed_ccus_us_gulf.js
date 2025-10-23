@@ -9,7 +9,7 @@ import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-loadEnv({ path: path.join(__dirname, '../.env') });
+loadEnv({ path: path.join(__dirname, '../.env'), quiet: true });
 
 import Organization from '../src/models/Organization.js';
 import Facility from '../src/models/Facility.js';
